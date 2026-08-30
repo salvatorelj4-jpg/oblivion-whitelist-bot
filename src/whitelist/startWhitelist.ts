@@ -4,6 +4,9 @@ import {
   PermissionFlagsBits,
 } from "discord.js";
 
+import { createSession } from "./sessionStore";
+import { sendCurrentQuestion } from "./questionFlow";
+
 export async function startWhitelist(interaction: ButtonInteraction) {
   if (!interaction.guild) {
     await interaction.reply({
@@ -41,10 +44,11 @@ export async function startWhitelist(interaction: ButtonInteraction) {
     return;
   }
 
-  const username = interaction.user.username
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, "")
-    .slice(0, 20);
+  const username =
+    interaction.user.username
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, "")
+      .slice(0, 20) || interaction.user.id;
 
   const channel = await interaction.guild.channels.create({
     name: `wl-${username}`,
@@ -55,7 +59,9 @@ export async function startWhitelist(interaction: ButtonInteraction) {
     permissionOverwrites: [
       {
         id: interaction.guild.roles.everyone.id,
-        deny: [PermissionFlagsBits.ViewChannel],
+        deny: [
+          PermissionFlagsBits.ViewChannel,
+        ],
       },
 
       {
@@ -92,20 +98,29 @@ export async function startWhitelist(interaction: ButtonInteraction) {
 
   await channel.send({
     content: [
-      `☢️ **WHITELIST — OBLIVION STALKER**`,
+      "☢️ **WHITELIST — OBLIVION STALKER**",
       "",
       `Bem-vindo, <@${interaction.user.id}>.`,
       "",
       "Sua aplicação será realizada neste canal privado.",
       "",
       "Você receberá **uma pergunta por vez**.",
-      "Após responder, sua resposta será registrada e a próxima pergunta será apresentada.",
+      "Após responder, sua resposta será registrada e a etapa anterior será removida.",
       "",
       "Responda com atenção e utilizando suas próprias palavras.",
       "",
       "**A Zona apenas espera.**",
     ].join("\n"),
   });
+
+  createSession({
+    userId: interaction.user.id,
+    channelId: channel.id,
+    currentQuestion: 0,
+    answers: [],
+  });
+
+  await sendCurrentQuestion(channel);
 
   await interaction.editReply(
     `✅ Sua whitelist foi iniciada em <#${channel.id}>.`
