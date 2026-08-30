@@ -7,6 +7,7 @@ import {
 import "dotenv/config";
 
 import { startWhitelist } from "./whitelist/startWhitelist";
+import { handleWhitelistAnswer } from "./whitelist/questionFlow";
 import { registerCommands } from "./commands/registerCommands";
 import { sendWhitelistPanel } from "./commands/whitelistPanel";
 
@@ -74,6 +75,17 @@ client.on("interactionCreate", async (interaction) => {
           .catch(() => {});
       }
     }
+  }
+});
+
+client.on("messageCreate", async (message) => {
+  try {
+    await handleWhitelistAnswer(message);
+  } catch (error) {
+    console.error(
+      "❌ Erro ao processar resposta da whitelist:",
+      error
+    );
   }
 });
 
