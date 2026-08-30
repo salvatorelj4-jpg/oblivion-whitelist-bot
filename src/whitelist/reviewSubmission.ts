@@ -11,7 +11,7 @@ export async function handleReviewDecision(
 ) {
   if (!interaction.guild) return;
 
-  // Confirma o clique imediatamente para o Discord não expirar a interação.
+  // Confirma o clique imediatamente sem mostrar mensagem ao moderador.
   await interaction.deferUpdate();
 
   const moderatorRoleId = process.env.MODERATOR_ROLE_ID;
@@ -127,11 +127,6 @@ export async function handleReviewDecision(
           );
         } catch {}
 
-        await interaction.followUp({
-          content: `✅ Whitelist de <@${userId}> aprovada com sucesso.`,
-          ephemeral: true,
-        });
-
         return;
       }
 
@@ -178,11 +173,6 @@ export async function handleReviewDecision(
             ].join("\n")
           );
         } catch {}
-
-        await interaction.followUp({
-          content: `❌ Whitelist de <@${userId}> reprovada.`,
-          ephemeral: true,
-        });
 
         return;
       }
