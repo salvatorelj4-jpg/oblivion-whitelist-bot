@@ -1,77 +1,102 @@
 import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
   Client,
-  EmbedBuilder,
-  TextChannel,
+  GatewayIntentBits,
+  Partials,
 } from "discord.js";
 
-import { whitelistQuestions } from "../config/questions";
+import "dotenv/config";
 
-type ReviewSubmissionParams = {
-  client: Client;
-  guildId: string;
-  userId: string;
-  username: string;
-  answers: string[];
-};
+import { startWhitelist } from "./whitelist/startWhitelist";
+import { handleWhitelistAnswer } from "./whitelist/questionFlow";
+import { handleReviewDecision } from "./whitelist/reviewDecision";
+import { registerCommands } from "./commands/registerCommands";
+import { sendWhitelistPanel } from "./commands/whitelistPanel";
 
-export async function sendWhitelistForReview({
-  client,
-  guildId,
-  userId,
-  username,
-  answers,
-}: ReviewSubmissionParams) {
-  const reviewChannelId = process.env.REVIEW_CHANNEL_ID;
+const token = process.env.DISCORD_TOKEN;
 
-  if (!reviewChannelId) {
-    throw new Error("REVIEW_CHANNEL_ID não configurado.");
-  }
-
-  const guild = await client.guilds.fetch(guildId);
-  const channel = await guild.channels.fetch(reviewChannelId);
-
-  if (!channel || !(channel instanceof TextChannel)) {
-    throw new Error("Canal de revisão inválido.");
-  }
-
-  const fields = whitelistQuestions.map((question, index) => ({
-    name: `${index + 1}. ${question}`.slice(0, 256),
-    value: (answers[index] || "Sem resposta").slice(0, 1024),
-  }));
-
-  const embed = new EmbedBuilder()
-    .setTitle("☢️ NOVA WHITELIST")
-    .setDescription([
-      `**Discord:** <@${userId}>`,
-      `**Usuário:** ${username}`,
-      "",
-      "**Status:** 🟡 Pendente",
-    ].join("\n"))
-    .addFields(fields)
-    .setTimestamp();
-
-  const approveButton = new ButtonBuilder()
-    .setCustomId(`whitelist:approve:${userId}`)
-    .setLabel("Aprovar")
-    .setEmoji("✅")
-    .setStyle(ButtonStyle.Success);
-
-  const denyButton = new ButtonBuilder()
-    .setCustomId(`whitelist:deny:${userId}`)
-    .setLabel("Reprovar")
-    .setEmoji("❌")
-    .setStyle(ButtonStyle.Danger);
-
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    approveButton,
-    denyButton
-  );
-
-  await channel.send({
-    embeds: [embed],
-    components: [row],
-  });
+if (!token) {
+  throw new Error("DISCORD_TOKEN não configurado.");
 }
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
+  partials: [
+    Partials.Channel,
+    Partials.Message,
+  ],
+});
+
+client.once("ready", async () => {
+  console.log(`✅ Bot online como ${client.user?.tag}`);
+
+  try {
+    await registerCommands();
+  } catch (error) {
+    console.error("❌ Erro ao registrar comandos:", error);
+  }
+});
+
+client.on("interactionCreate", async (interaction) => {
+  try {
+    if (interaction.isChatInputCommand()) {
+      if (interaction.commandName === "whitelist-painel") {
+        await sendWhitelistPanel(interaction);
+      }
+
+      return;
+    }
+
+    if (interaction.isButton()) {
+      if (interaction.customId === "whitelist:start") {
+        await startWhitelist(interaction);
+        return;
+      }
+
+      if (
+        interaction.customId.startsWith("whitelist:approve:") ||
+        interaction.customId.startsWith("whitelist:deny:")
+      ) {
+        await handleReviewDecision(interaction);
+        return;
+      }
+    }
+  } catch (error) {
+    console.error("❌ Erro ao processar interação:", error);
+
+    if (interaction.isRepliable()) {
+      if (interaction.replied || interaction.deferred) {
+        await interaction
+          .followUp({
+            content: "❌ Ocorreu um erro ao processar esta ação.",
+            ephemeral: true,
+          })
+          .catch(() => {});
+      } else {
+        await interaction
+          .reply({
+            content: "❌ Ocorreu um erro ao processar esta ação.",
+            ephemeral: true,
+          })
+          .catch(() => {});
+      }
+    }
+  }
+});
+
+client.on("messageCreate", async (message) => {
+  try {
+    await handleWhitelistAnswer(message);
+  } catch (error) {
+    console.error(
+      "❌ Erro ao processar resposta da whitelist:",
+      error
+    );
+  }
+});
+
+client.login(token);
