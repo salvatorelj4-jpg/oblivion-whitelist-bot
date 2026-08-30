@@ -6,6 +6,7 @@ import {
 
 import "dotenv/config";
 
+import { startWhitelist } from "./whitelist/startWhitelist";
 import { registerCommands } from "./commands/registerCommands";
 import { sendWhitelistPanel } from "./commands/whitelistPanel";
 
@@ -39,12 +40,40 @@ client.once("ready", async () => {
 });
 
 client.on("interactionCreate", async (interaction) => {
-  if (!interaction.isChatInputCommand()) {
-    return;
-  }
+  try {
+    if (interaction.isChatInputCommand()) {
+      if (interaction.commandName === "whitelist-painel") {
+        await sendWhitelistPanel(interaction);
+      }
 
-  if (interaction.commandName === "whitelist-painel") {
-    await sendWhitelistPanel(interaction);
+      return;
+    }
+
+    if (interaction.isButton()) {
+      if (interaction.customId === "whitelist:start") {
+        await startWhitelist(interaction);
+      }
+    }
+  } catch (error) {
+    console.error("❌ Erro ao processar interação:", error);
+
+    if (interaction.isRepliable()) {
+      if (interaction.replied || interaction.deferred) {
+        await interaction
+          .followUp({
+            content: "❌ Ocorreu um erro ao processar esta ação.",
+            ephemeral: true,
+          })
+          .catch(() => {});
+      } else {
+        await interaction
+          .reply({
+            content: "❌ Ocorreu um erro ao processar esta ação.",
+            ephemeral: true,
+          })
+          .catch(() => {});
+      }
+    }
   }
 });
 
