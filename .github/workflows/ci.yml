@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+      DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
+      DISCORD_GUILD_ID: ${{ secrets.DISCORD_GUILD_ID }}
+
+      REVIEW_CHANNEL_ID: ${{ secrets.REVIEW_CHANNEL_ID }}
+      APPROVED_CHANNEL_ID: ${{ secrets.APPROVED_CHANNEL_ID }}
+      DENIED_CHANNEL_ID: ${{ secrets.DENIED_CHANNEL_ID }}
+
+      WHITELIST_ROLE_ID: ${{ secrets.WHITELIST_ROLE_ID }}
+      MODERATOR_ROLE_ID: ${{ secrets.MODERATOR_ROLE_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build
+        run: npm run build
