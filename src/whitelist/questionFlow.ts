@@ -11,6 +11,8 @@ import {
   updateSession,
 } from "./sessionStore";
 
+import { sendWhitelistForReview } from "./reviewSubmission";
+
 export async function sendCurrentQuestion(
   channel: TextChannel
 ) {
@@ -26,7 +28,7 @@ export async function sendCurrentQuestion(
     return;
   }
 
-  const message = await channel.send({
+  const questionMessage = await channel.send({
     content: [
       `☢️ **PERGUNTA ${session.currentQuestion + 1}/${whitelistQuestions.length}**`,
       "",
@@ -37,7 +39,7 @@ export async function sendCurrentQuestion(
   });
 
   updateSession(channel.id, {
-    lastBotMessageId: message.id,
+    lastBotMessageId: questionMessage.id,
   });
 }
 
@@ -52,7 +54,7 @@ export async function handleWhitelistAnswer(
     return;
   }
 
-  if (!message.channel.isTextBased()) {
+  if (!(message.channel instanceof TextChannel)) {
     return;
   }
 
@@ -62,6 +64,7 @@ export async function handleWhitelistAnswer(
     return;
   }
 
+  // Somente o dono da whitelist pode responder.
   if (message.author.id !== session.userId) {
     return;
   }
@@ -74,7 +77,7 @@ export async function handleWhitelistAnswer(
 
   const answers = [...session.answers, answer];
 
-  // Apaga a pergunta anterior.
+  // Remove a pergunta anterior.
   if (session.lastBotMessageId) {
     try {
       const previousBotMessage =
@@ -84,23 +87,51 @@ export async function handleWhitelistAnswer(
 
       await previousBotMessage.delete();
     } catch {
-      // Ignora se já tiver sido removida.
+      // A mensagem pode já ter sido removida.
     }
   }
 
-  // Apaga a resposta do jogador.
+  // Remove a resposta do jogador depois de salvá-la.
   try {
     await message.delete();
   } catch {
-    // Ignora caso não seja possível apagar.
+    // Continua mesmo que o Discord não permita apagar.
   }
 
   const nextQuestion = session.currentQuestion + 1;
 
+  // Última pergunta concluída.
   if (nextQuestion >= whitelistQuestions.length) {
     updateSession(message.channel.id, {
       answers,
     });
+
+    try {
+      await sendWhitelistForReview({
+        client: message.client,
+        guildId: message.guild.id,
+        userId: session.userId,
+        username: message.author.username,
+        answers,
+      });
+    } catch (error) {
+      console.error(
+        "❌ Erro ao enviar whitelist para análise:",
+        error
+      );
+
+      await message.channel.send({
+        content: [
+          "❌ **ERRO AO ENVIAR A WHITELIST**",
+          "",
+          "Não foi possível encaminhar sua aplicação para a equipe.",
+          "",
+          "O canal será mantido aberto para que a staff possa verificar o problema.",
+        ].join("\n"),
+      });
+
+      return;
+    }
 
     await message.channel.send({
       content: [
@@ -108,22 +139,35 @@ export async function handleWhitelistAnswer(
         "",
         "Todas as suas respostas foram registradas.",
         "",
-        "Sua aplicação será enviada para análise da equipe.",
+        "Sua aplicação foi enviada para análise da equipe.",
         "",
-        "Este canal será fechado automaticamente.",
+        "Você receberá o resultado após a avaliação.",
+        "",
+        "Este canal será fechado automaticamente em alguns segundos.",
       ].join("\n"),
     });
 
-    // Aqui vamos adicionar no próximo passo:
-    // envio para o canal da staff
-    // aprovação/reprovação
-    // fechamento do canal
-
     deleteSession(message.channel.id);
+
+    const channel = message.channel;
+
+    setTimeout(async () => {
+      try {
+        await channel.delete(
+          "Whitelist concluída e enviada para análise."
+        );
+      } catch (error) {
+        console.error(
+          "❌ Erro ao fechar canal da whitelist:",
+          error
+        );
+      }
+    }, 5000);
 
     return;
   }
 
+  // Avança para a próxima pergunta.
   updateSession(message.channel.id, {
     answers,
     currentQuestion: nextQuestion,
@@ -131,7 +175,5 @@ export async function handleWhitelistAnswer(
     lastUserMessageId: undefined,
   });
 
-  if (message.channel instanceof TextChannel) {
-    await sendCurrentQuestion(message.channel);
-  }
+  await sendCurrentQuestion(message.channel);
 }
