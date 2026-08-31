@@ -7,6 +7,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "check": "node --check src/index.js && node --check src/commands/registerCommands.js && node --check src/commands/whitelistPanel.js && node --check src/config/questions.js && node --check src/whitelist/sessionStore.js && node --check src/whitelist/startWhitelist.js && node --check src/whitelist/questionFlow.js && node --check src/whitelist/reviewSubmission.js && node --check src/whitelist/reviewDecision.js",
     "start": "node src/index.js"
   },
   "dependencies": {

@@ -1,13 +1,13 @@
-FROM node:22-alpine
+FROM node:22-bookworm-slim
 
 WORKDIR /app
 
 COPY package*.json ./
+COPY .npmrc ./
+RUN npm install --omit=dev --no-audit --no-fund
 
-RUN npm install
+COPY src ./src
 
-COPY . .
-
-RUN npm run build
+ENV NODE_ENV=production
 
 CMD ["npm", "start"]
