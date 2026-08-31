@@ -3,4 +3,8 @@ dist
 .env
 .git
 .github
-npm-debug.log
+.vscode
+.idea
+*.log
+npm-debug.log*
+README.md
